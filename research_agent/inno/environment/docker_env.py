@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Union, Dict
 from functools import update_wrapper
 from inspect import signature
+import socket
 @dataclass
 class DockerConfig: 
     container_name: str
@@ -99,6 +100,13 @@ class DockerEnv:
             raise Exception(f"Failed to start container: {result.stderr}")
         if self.wait_for_container_ready(timeout=60):
             print(f"Container '{self.container_name}' has been created and started.")
+            
+    def is_port_open(host, port, timeout=2):
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except Exception:
+            return False
     def wait_for_container_ready(self, timeout=30):
         """using subprocess to check if the container is running"""
         start_time = time.time()
@@ -116,13 +124,17 @@ class DockerEnv:
                 # 额外检查 tcp_server 是否运行
                 try:
                     port_info = check_container_ports(self.container_name)
-                    assert port_info and (port_info[0] == port_info[1])
-                    available_port = port_info[0]
-                    self.communication_port = available_port
-                    result = self.run_command('ps aux')
-                    print("result", result)
-                    if "tcp_server.py" in result['result']:
-                        return True
+                    if port_info:
+                        host_port, container_port = port_info
+                        self.communication_port = host_port
+
+                        if is_port_open("localhost", host_port):
+                            result = self.run_command('ps aux')
+                            print("result", result)
+                            if "tcp_server.py" in result['result']:
+                                return True
+                        else:
+                            print(f"Port {host_port} not yet open")
                 except Exception as e:
                     print(f"Failed to check container ports: {e}")
                 
