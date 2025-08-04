@@ -381,6 +381,7 @@ class MetaChain:
                 "tool_choice": agent.tool_choice,
                 "stream": stream,
                 "base_url": API_BASE_URL,
+                "timeout": 600,
             }
             NO_SENDER_MODE = False
             for not_sender_model in NOT_SUPPORT_SENDER:
@@ -425,6 +426,7 @@ class MetaChain:
                 "messages": messages,
                 "stream": stream,
                 "base_url": API_BASE_URL,
+                "timeout": 600,
             }
             completion_response = await acompletion(**create_params)
             last_message = [{"role": "assistant", "content": completion_response.choices[0].message.content}]
