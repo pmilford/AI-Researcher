@@ -114,29 +114,29 @@ class DockerEnv:
                     raise Exception(f"Failed to remove zombie container '{self.container_name}'. Docker error: {e.stderr}")
         
         # If we are here, either the container did not exist or we just removed a zombie.
-        # Find an available port and create a new container.
-        if not DockerEnv.is_port_available(self.communication_port):
-            print(f"Port {self.communication_port} is already allocated. Searching for a free port...")
-            port = self.communication_port + 1
-            while not DockerEnv.is_port_available(port):
-                port += 1
-            print(f"Found free port: {port}")
-            self.communication_port = port
-
+        # Create a new container and let Docker assign a random available port.
         gpu_cmd = ["--gpus", GPUS] if GPUS else []
         docker_command = [
             "docker", "run", "-d", "--platform", PLATFORM, "--userns=host",] + gpu_cmd + ["--name", self.container_name,
             "--user", "root", "-v", f"{self.local_workplace}:{self.docker_workplace}",
-            "-w", f"{self.docker_workplace}", "-p", f"{self.communication_port}:8000",
+            "-w", f"{self.docker_workplace}", "-p", "8000", # Let Docker assign a random host port
             "--restart", "unless-stopped", BASE_IMAGES
         ]
-        print(f"Creating container '{self.container_name}' on port {self.communication_port}...")
+        print(f"Creating new container '{self.container_name}'...")
         print(docker_command)
 
         try:
             subprocess.run(docker_command, check=True, capture_output=True, text=True)
+
+            # Discover the port that Docker assigned
+            port_info = check_container_ports(self.container_name)
+            if not port_info:
+                raise Exception("Failed to discover port for newly created container.")
+            self.communication_port = port_info[0]
+            print(f"Container created successfully. Docker assigned port {self.communication_port}.")
+
             if self.wait_for_container_ready(timeout=60):
-                print(f"Container '{self.container_name}' has been created and started.")
+                print(f"Container '{self.container_name}' is ready.")
         except subprocess.CalledProcessError as e:
             raise Exception(f"Failed to create container. Docker error: {e.stderr}")
 
