@@ -22,6 +22,7 @@ import asyncio
 import argparse
 import os
 from typing import List, Dict, Any, Union
+import logging
 from research_agent.inno.logger import MetaChainLogger
 import importlib
 from research_agent.inno.environment.utils import setup_dataset
@@ -54,7 +55,8 @@ def extract_json_from_output(output_text: str) -> dict:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            print(f"JSON解析错误: {e}")
+            logging.error(f"JSON解析错误: {e}")
+            logging.error(f"错误的JSON字符串: {json_str}")
             return {}
     return {}
 def get_args(): 
