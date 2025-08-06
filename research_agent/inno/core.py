@@ -28,7 +28,8 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
     retry_if_exception_type, 
-    RetryCallState
+    RetryCallState,
+    wait_base
 )
 from openai import AsyncOpenAI
 from research_agent.constant import  API_BASE_URL, NOT_SUPPORT_SENDER, MUST_ADD_USER, NOT_SUPPORT_FN_CALL, NOT_USE_FN_CALL
@@ -92,6 +93,27 @@ def truncate_message(message: str) -> str:
         return decode_tokens_by_tiktoken(tokens[:max_length])
     else:
         return message
+
+class my_wait_strategy(wait_base):
+    def __init__(self):
+        self.short_wait = wait_exponential(multiplier=2, min=1, max=60)
+        self.long_wait = wait_exponential(multiplier=2, min=30, max=1200)
+
+    def __call__(self, retry_state):
+        exception = retry_state.outcome.exception()
+        if isinstance(exception, litellm.RateLimitError):
+            return self.long_wait(retry_state)
+        else:
+            return self.short_wait(retry_state)
+
+def before_sleep_fn(retry_state):
+    """A custom function to be called before sleeping in a retry loop."""
+    exception = retry_state.outcome.exception()
+    wait_time = retry_state.next_action.sleep
+    if isinstance(exception, litellm.RateLimitError):
+        print(f"Rate limit exceeded. Retrying in {wait_time:.2f} seconds...")
+    else:
+        print(f"An error occurred: {exception}. Retrying in {wait_time:.2f} seconds... (attempt {retry_state.attempt_number})")
 
 class MetaChain:
     def __init__(self, log_path: Union[str, None, MetaChainLogger] = None):
@@ -337,9 +359,9 @@ class MetaChain:
         )
     @retry(
         stop=stop_after_attempt(6),
-        wait=wait_exponential(multiplier=2, min=30, max=1200),
+        wait=my_wait_strategy(),
         retry=should_retry_error,
-        before_sleep=lambda retry_state: print(f"Retrying... (attempt {retry_state.attempt_number})")
+        before_sleep=before_sleep_fn
     )
     async def get_chat_completion_async(
         self,
