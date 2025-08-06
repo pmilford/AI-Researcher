@@ -28,9 +28,9 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
     retry_if_exception_type, 
-    RetryCallState,
-    wait_base
+    RetryCallState
 )
+from tenacity.wait import wait_base
 from openai import AsyncOpenAI
 from research_agent.constant import  API_BASE_URL, NOT_SUPPORT_SENDER, MUST_ADD_USER, NOT_SUPPORT_FN_CALL, NOT_USE_FN_CALL
 from research_agent.inno.fn_call_converter import convert_tools_to_description, convert_non_fncall_messages_to_fncall_messages, SYSTEM_PROMPT_SUFFIX_TEMPLATE, convert_fn_messages_to_non_fn_messages, interleave_user_into_messages
