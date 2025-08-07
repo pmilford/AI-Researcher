@@ -29,34 +29,46 @@ from research_agent.inno.environment.utils import setup_dataset
 # task_level = "task1"
 def warp_source_papers(source_papers):
     return "\n".join([f"Title: {source_paper['reference']}; You can use this paper in the following way: {source_paper['usage']}" for source_paper in source_papers])
+import re
 def extract_json_from_output(output_text: str) -> dict:
-    # 计数器方法来找到完整的JSON
+    # 1. Try to find json in markdown block
+    match = re.search(r"```json\n(.*)\n```", output_text, re.DOTALL)
+    if match:
+        json_str = match.group(1)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON parsing error in markdown block: {e}")
+            logging.error(f"Invalid JSON string: {json_str}")
+            # Fall through to the next method
+
+    # 2. If no markdown block, use the original stack-based method
     def find_json_boundaries(text):
         stack = []
         start = -1
         
         for i, char in enumerate(text):
             if char == '{':
-                if not stack:  # 第一个开括号
+                if not stack:
                     start = i
                 stack.append(char)
             elif char == '}':
-                stack.pop()
-                if not stack and start != -1:  # 找到匹配的最外层括号
-                    return text[start:i+1]
+                if stack:
+                    stack.pop()
+                    if not stack and start != -1:
+                        return text[start:i+1]
         
         return None
 
-    # 找到JSON文本
     json_str = find_json_boundaries(output_text)
     
     if json_str:
         try:
             return json.loads(json_str)
         except json.JSONDecodeError as e:
-            logging.error(f"JSON解析错误: {e}")
-            logging.error(f"错误的JSON字符串: {json_str}")
-            return {}
+            logging.error(f"JSON parsing error with boundary search: {e}")
+            logging.error(f"Invalid JSON string: {json_str}")
+
     return {}
 def get_args(): 
     parser = argparse.ArgumentParser()
